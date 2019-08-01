@@ -9,6 +9,7 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,10 +38,11 @@ public class ConfigManager {
         this.rootPath = rootPath;
         RetryPolicy retryPolicy = new ExponentialBackoffRetry(this.baseSleepTimeMs, this.maxRetries);
 
+        //1. 创建zk连接
         String[] zkServerArray = zkservers.split(",");
         for (String zkServer:zkServerArray){
             try {
-                this.client = CuratorFrameworkFactory.newClient(this.zkservers, retryPolicy);
+                this.client = CuratorFrameworkFactory.newClient(zkServer, retryPolicy);
                 this.client.start();
                 if (this.client!=null&&this.client.getState()== CuratorFrameworkState.STARTED){
                     break;
@@ -54,6 +56,7 @@ public class ConfigManager {
             throw new ZkConnectException("连接zookeeper失败");
         }
 
+        //创建根目录
         String realPath = this.rootPath + "/keep";
         if (this.client.checkExists().forPath(realPath) == null) {
             try {
@@ -71,10 +74,8 @@ public class ConfigManager {
 
         PathChildrenCache pathChildrenCache = new PathChildrenCache(this.client, this.rootPath, true);
         pathChildrenCache.start();
-        pathChildrenCache.getListenable().addListener(new PathChildrenCacheListener() {
-            @Override
-            public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
-                logger.info(event.getType().name());
+        pathChildrenCache.getListenable().addListener((client,event)-> {
+
                 switch ( event.getType() )
                 {
                     case CHILD_ADDED:
@@ -92,7 +93,6 @@ public class ConfigManager {
                         _CONFIG_MAP.remove(event.getData().getPath());
                         break;
                     }
-                }
             }
         });
     }
@@ -133,11 +133,25 @@ public class ConfigManager {
         }
         try {
             if (getConfig(key) == null || getConfig(key).equals("")) {
-                 this.client.create().creatingParentsIfNeeded().forPath(newkey, value.getBytes(Charset.forName("UTF-8")));
+                 this.client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(newkey, value.getBytes(Charset.forName("UTF-8")));
             } else {
                  this.client.setData().forPath(newkey, value.getBytes(Charset.forName("UTF-8")));
             }
             _CONFIG_MAP.put(newkey, value);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean setConfigByFullPath(String fullpath,String value){
+        if (client.getState() == CuratorFrameworkState.STOPPED) {
+            client.start();
+        }
+        try {
+
+            this.client.setData().forPath(fullpath, value.getBytes(Charset.forName("UTF-8")));
+
             return true;
         } catch (Exception e) {
             return false;
@@ -214,6 +228,23 @@ public class ConfigManager {
         } catch (Exception e) {
             logger.error(String.format("删除%s失败", realKey), e);
             return false;
+        }
+    }
+
+    public void createParetsIfNeed(String path) throws Exception {
+        String realpath = rootPath + "/" + path.replace(".", "/");
+        this.client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(realpath + "/keep");
+        this.deleteConfig(path + ".keep");
+    }
+
+    public PathChildrenCache addPathChildrenCache(String path,boolean cacheData){
+        String realpath = rootPath + "/" + path.replace(".", "/");
+        PathChildrenCache pathChildrenCache = new PathChildrenCache(this.client, realpath, cacheData);
+        try {
+            pathChildrenCache.start();
+            return pathChildrenCache;
+        } catch (Exception e) {
+            return null;
         }
     }
 }
