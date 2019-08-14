@@ -133,9 +133,33 @@ public class ConfigManager {
         }
         try {
             if (getConfig(key) == null || getConfig(key).equals("")) {
-                 this.client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(newkey, value.getBytes(Charset.forName("UTF-8")));
+                 this.client.create().creatingParentsIfNeeded().forPath(newkey, value.getBytes(Charset.forName("UTF-8")));
             } else {
                  this.client.setData().forPath(newkey, value.getBytes(Charset.forName("UTF-8")));
+            }
+            _CONFIG_MAP.put(newkey, value);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 设置配置
+     * @param key
+     * @param value
+     * @return
+     */
+    public boolean setEphemeralConfig(String key, String value) {
+        String newkey = rootPath + "/" + key.replace(".","/");
+        if (client.getState() == CuratorFrameworkState.STOPPED) {
+            client.start();
+        }
+        try {
+            if (getConfig(key) == null || getConfig(key).equals("")) {
+                this.client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(newkey, value.getBytes(Charset.forName("UTF-8")));
+            } else {
+                this.client.setData().forPath(newkey, value.getBytes(Charset.forName("UTF-8")));
             }
             _CONFIG_MAP.put(newkey, value);
             return true;
@@ -233,7 +257,7 @@ public class ConfigManager {
 
     public void createParetsIfNeed(String path) throws Exception {
         String realpath = rootPath + "/" + path.replace(".", "/");
-        this.client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(realpath + "/keep");
+        this.client.create().creatingParentsIfNeeded().forPath(realpath + "/keep");
         this.deleteConfig(path + ".keep");
     }
 
