@@ -6,10 +6,9 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
-import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
-import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -261,8 +260,16 @@ public class ConfigManager {
             client.start();
         }
         try {
-            this.client.delete().forPath(path);
-            _CONFIG_MAP.remove(path);
+            try {
+                byte[] data = this.client.getData().forPath(path);
+                if (data!=null||data.length!=0){
+                    this.client.delete().forPath(path);
+                }
+            }catch (KeeperException.NoNodeException e){
+                logger.error("没有该节点",e);
+            }
+                _CONFIG_MAP.remove(path);
+
             return true;
         } catch (Exception e) {
             logger.error(String.format("删除%s失败", path), e);
