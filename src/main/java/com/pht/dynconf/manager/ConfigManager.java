@@ -90,6 +90,7 @@ public class ConfigManager {
                     }
                     case CHILD_REMOVED:
                     {
+                        logger.info("child_removed");
                         _CONFIG_MAP.remove(event.getData().getPath());
                         break;
                     }
@@ -251,6 +252,20 @@ public class ConfigManager {
             return true;
         } catch (Exception e) {
             logger.error(String.format("删除%s失败", realKey), e);
+            return false;
+        }
+    }
+
+    public boolean deleteConfigByFullPath(String path){
+        if (client.getState() == CuratorFrameworkState.STOPPED) {
+            client.start();
+        }
+        try {
+            this.client.delete().forPath(path);
+            _CONFIG_MAP.remove(path);
+            return true;
+        } catch (Exception e) {
+            logger.error(String.format("删除%s失败", path), e);
             return false;
         }
     }
