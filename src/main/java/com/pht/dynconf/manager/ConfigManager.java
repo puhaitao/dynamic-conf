@@ -16,6 +16,7 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 配置管理类，支持获取、更新配置等操作
@@ -28,7 +29,7 @@ public class ConfigManager {
     private String zkservers;
     private CuratorFramework client;
     private String rootPath;
-    private volatile static Map<String, String> _CONFIG_MAP=new HashMap<>();
+    private volatile static Map<String, String> _CONFIG_MAP=new ConcurrentHashMap<>();
 
     public ConfigManager(int baseSleepTimeMs, int maxRetries, String zkservers, String rootPath) throws Exception {
         this.baseSleepTimeMs = baseSleepTimeMs;
@@ -292,5 +293,14 @@ public class ConfigManager {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    public void setLocalCache(String fullPath, String value) {
+        _CONFIG_MAP.put(fullPath, value);
+    }
+
+    public void removeLocalCache(String fullPath){
+        logger.info("remove item with key "+fullPath+" from localcache");
+        _CONFIG_MAP.remove(fullPath);
     }
 }
